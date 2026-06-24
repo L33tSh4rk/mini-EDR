@@ -1,0 +1,9 @@
+# teste
+.venv-server/
+.venv/
+venv/
+
+# artefatos
+__pycache__/
+*.pyc
+*.pyo
