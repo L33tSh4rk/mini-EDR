@@ -10,6 +10,9 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# garante que /var/www exista no boot para o watchdog observar (web shell demo)
+RUN mkdir -p /var/www/html
+
 # instala as dependencias do agente primeiro (cache de camada)
 COPY agent/requirements.txt agent/requirements.txt
 RUN pip install --no-cache-dir -r agent/requirements.txt
