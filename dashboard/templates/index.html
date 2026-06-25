@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- dashboard do mini-edr, comunicacao via websocket -->
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mini-edr · threat monitor</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+  <!-- barra superior: marca, metricas e status da conexao -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <span class="brand-name">MINI-EDR</span>
+      <span class="brand-sub">THREAT MONITOR</span>
+    </div>
+    <div class="status-area">
+      <div class="metric">
+        <span class="metric-value" id="online-count">0</span>
+        <span class="metric-label">endpoints online</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="alert-count">0</span>
+        <span class="metric-label">alertas</span>
+      </div>
+      <div class="conn conn-off" id="conn">
+        <span class="conn-dot"></span>
+        <span id="conn-text">conectando…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- grade principal: endpoints a esquerda, alertas a direita -->
+  <main class="grid">
+    <section class="panel">
+      <div class="panel-head">
+        <span>ENDPOINTS</span>
+        <span class="panel-hint" id="agent-total">0</span>
+      </div>
+      <div class="panel-body" id="agent-list">
+        <div class="empty">sem endpoints registrados</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <span>ALERTAS</span>
+        <span class="panel-hint live">● tempo real</span>
+      </div>
+      <div class="panel-body" id="alert-list">
+        <div class="empty">nenhum alerta recebido</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- toasts de feedback das acoes -->
+  <div id="toasts"></div>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
