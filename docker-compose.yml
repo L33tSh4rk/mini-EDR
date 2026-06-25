@@ -1,0 +1,163 @@
+# orquestracao do mini-edr: broker, servidor (api + dashboard), worker (background) e agentes (endpoints monitorados).
+
+
+# modos de subida (profiles):
+#   docker compose up -d                      -> infra (redis + server + worker)
+#   docker compose --profile single up -d     -> infra + 1 agente generico
+#   docker compose --profile demo   up -d     -> infra + 5 endpoints nomeados
+#   docker compose up -d agent_web            -> infra + um endpoint isolado
+
+# config comum dos agentes
+x-agent-base: &agent-base
+  build:
+    context: .
+    dockerfile: agent/Dockerfile
+  image: mini_edr_agent
+  command: python -m agent.main
+  cap_add:
+    - NET_ADMIN
+  depends_on:
+    redis:
+      condition: service_healthy
+    server:
+      condition: service_healthy
+  restart: unless-stopped
+
+x-agent-env: &agent-env
+  PYTHONUNBUFFERED: "1"
+  SERVER_HOST: server
+  SERVER_HTTP_PORT: "8000"
+  SERVER_UDP_PORT: "9999"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  # intervalos curtos para demo
+  FLUSH_INTERVAL: "2"
+  PROC_POLL_INTERVAL: "1"
+
+services:
+  redis:
+    # broker unico de mensageria e estado temporario
+    image: redis:7-alpine
+    container_name: mini_edr_redis
+    # sobe o redis com a config customizada do projeto
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      # injeta a configuracao do broker
+      - ./broker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      # volume persistente para o log append-only
+      - redis_data:/data
+    ports:
+      # expoe o redis para host, agente e servidor
+      - "6379:6379"
+    healthcheck:
+      # considera saudavel quando responde ao ping
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  server:
+    # api fastapi + dashboard (websocket) + escuta udp de heartbeats
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: mini_edr_server
+    container_name: mini_edr_server
+    command: uvicorn server.main:app --host 0.0.0.0 --port 8000
+    environment:
+      PYTHONUNBUFFERED: "1"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      # serve o dashboard direto do disco: mudancas de ui valem so com refresh
+      - ./dashboard:/app/dashboard:ro
+    ports:
+      # dashboard/api acessivel no host
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # saudavel quando a pagina do dashboard responde
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  worker:
+    # processo de background: consome a fila, correlaciona e publica alertas
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: mini_edr_server
+    container_name: mini_edr_worker
+    command: python -m server.engine.worker
+    environment:
+      PYTHONUNBUFFERED: "1"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # agente generico. sobe so com --profile single
+  agent:
+    <<: *agent-base
+    profiles: ["single"]
+    environment:
+      <<: *agent-env
+
+  # 5 endpoints nomeados (--profile demo)
+  agent_web:
+    <<: *agent-base
+    container_name: mini_edr_agent_web
+    hostname: web-01
+    profiles: ["demo", "web"]
+    environment:
+      <<: *agent-env
+      AGENT_ID: web-01
+      # vigia tambem /var/www para detectar web shell
+      WATCH_PATHS: "/etc,/tmp,/home,/var/www"
+
+  agent_db:
+    <<: *agent-base
+    container_name: mini_edr_agent_db
+    hostname: db-02
+    profiles: ["demo", "db"]
+    environment:
+      <<: *agent-env
+      AGENT_ID: db-02
+
+  agent_app:
+    <<: *agent-base
+    container_name: mini_edr_agent_app
+    hostname: app-03
+    profiles: ["demo", "app"]
+    environment:
+      <<: *agent-env
+      AGENT_ID: app-03
+
+  agent_adm:
+    <<: *agent-base
+    container_name: mini_edr_agent_adm
+    hostname: adm-04
+    profiles: ["demo", "adm"]
+    environment:
+      <<: *agent-env
+      AGENT_ID: adm-04
+
+  agent_bkp:
+    <<: *agent-base
+    container_name: mini_edr_agent_bkp
+    hostname: bkp-05
+    profiles: ["demo", "bkp"]
+    environment:
+      <<: *agent-env
+      AGENT_ID: bkp-05
+
+volumes:
+  # persistencia do redis sobrevive a recriacao do container
+  redis_data:

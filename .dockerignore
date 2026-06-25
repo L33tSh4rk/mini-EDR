@@ -1,0 +1,10 @@
+# ambientes virtuais e artefatos que nao entram nas imagens
+.venv-server/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+tests/
+*.md
